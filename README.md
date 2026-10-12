@@ -26,4 +26,4 @@ Use `-t` for the target language. The source language is detected automatically 
 
 ## License
 
-MIT licensed. See [LICENSE](LICENSE).
+Unlicense. See [LICENSE](LICENSE).
