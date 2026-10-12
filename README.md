@@ -1,6 +1,6 @@
-# translate
+# apple-translation-cli
 
-Translate text using Apple's on-device Translation API. Requires macOS 26 or later.
+CLI tool to translate text using Apple's on-device translation API
 
 ## Installation
 
