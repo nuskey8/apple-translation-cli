@@ -15,9 +15,14 @@ Installs the latest release to `~/.local/bin` and configures PATH for zsh, bash,
 ```sh
 translate -s en -t ja 'Hello, world!'
 printf 'こんにちは' | translate -s ja -t en
+translate -t ja 'Good morning'
 ```
 
-Use `-s` for the source language and `-t` for the target language.
+Use `-t` for the target language. The source language is detected automatically when `-s` is omitted (or set to `auto`); use `-s` to specify it explicitly. 
+
+> [!NOTE]
+> For reliable detection, use text of at least 20 characters; 
+> macOS may ask you to choose a language when it is unclear.
 
 ## License
 

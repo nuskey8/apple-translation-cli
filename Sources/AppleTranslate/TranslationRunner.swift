@@ -9,7 +9,7 @@ final class TranslationRunner: NSObject, NSWindowDelegate {
     private var result: Result<String, Error>?
     private var window: NSWindow?
 
-    func run(input: String, source: Locale.Language, target: Locale.Language) throws -> String {
+    func run(input: String, source: Locale.Language?, target: Locale.Language) throws -> String {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let task = Task { @MainActor in
@@ -19,30 +19,39 @@ final class TranslationRunner: NSObject, NSWindowDelegate {
             } else {
                 availability = LanguageAvailability()
             }
-            let status = await availability.status(from: source, to: target)
-            guard !Task.isCancelled else { return }
-            switch status {
-            case .installed:
-                do {
-                    let session: TranslationSession
-                    if #available(macOS 26.4, *) {
-                        session = TranslationSession(
-                            installedSource: source, target: target, preferredStrategy: .lowLatency
-                        )
-                    } else {
-                        session = TranslationSession(installedSource: source, target: target)
-                    }
-                    let response = try await session.translate(input)
-                    finish(.success(response.targetText))
-                } catch {
-                    finish(.failure(error))
+            do {
+                let status: LanguageAvailability.Status
+                if let source {
+                    status = await availability.status(from: source, to: target)
+                } else {
+                    status = try await availability.status(for: input, to: target)
                 }
-            case .supported:
-                showDownloadWindow(input: input, source: source, target: target)
-            case .unsupported:
-                finish(.failure(ValidationError("The requested translation language pair is unsupported.")))
-            @unknown default:
-                finish(.failure(ValidationError("Unable to determine translation language availability.")))
+                guard !Task.isCancelled else { return }
+                switch status {
+                case .installed:
+                    if let source {
+                        let session: TranslationSession
+                        if #available(macOS 26.4, *) {
+                            session = TranslationSession(
+                                installedSource: source, target: target, preferredStrategy: .lowLatency
+                            )
+                        } else {
+                            session = TranslationSession(installedSource: source, target: target)
+                        }
+                        let response = try await session.translate(input)
+                        finish(.success(response.targetText))
+                    } else {
+                        showTranslationWindow(input: input, source: nil, target: target, needsDownload: false)
+                    }
+                case .supported:
+                    showTranslationWindow(input: input, source: source, target: target, needsDownload: true)
+                case .unsupported:
+                    finish(.failure(ValidationError("The requested translation language pair is unsupported.")))
+                @unknown default:
+                    finish(.failure(ValidationError("Unable to determine translation language availability.")))
+                }
+            } catch {
+                finish(.failure(error))
             }
         }
         app.run()
@@ -54,7 +63,9 @@ final class TranslationRunner: NSObject, NSWindowDelegate {
         return try result.get()
     }
 
-    private func showDownloadWindow(input: String, source: Locale.Language, target: Locale.Language) {
+    private func showTranslationWindow(
+        input: String, source: Locale.Language?, target: Locale.Language, needsDownload: Bool
+    ) {
         let configuration: TranslationSession.Configuration
         if #available(macOS 26.4, *) {
             configuration = .init(source: source, target: target, preferredStrategy: .lowLatency)
@@ -64,9 +75,11 @@ final class TranslationRunner: NSObject, NSWindowDelegate {
         let view = DownloadView(input: input, configuration: configuration) { [weak self] result in
             self?.finish(result)
         }
-        FileHandle.standardError.write(Data(
-            "translate: Select Download to allow language downloads.\n".utf8
-        ))
+        if needsDownload {
+            FileHandle.standardError.write(Data(
+                "translate: Select Download to allow language downloads.\n".utf8
+            ))
+        }
         let window = TranslationHostWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 400),
             styleMask: [.borderless], backing: .buffered, defer: false

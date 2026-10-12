@@ -12,8 +12,8 @@ struct AppleTranslate: ParsableCommand {
     )
 
     @Option(name: [.customShort("s"), .customLong("source")],
-            help: "Source language code, for example en or ja.")
-    var source: String
+            help: "Source language code, for example en or ja; use auto to detect it.")
+    var source: String = "auto"
 
     @Option(name: [.customShort("t"), .customLong("target")],
             help: "Target language code, for example ja or en.")
@@ -31,7 +31,9 @@ struct AppleTranslate: ParsableCommand {
 
     mutating func run() throws {
         let input = try readInput()
-        let sourceLanguage = Locale.Language(identifier: source)
+        let sourceLanguage = source.caseInsensitiveCompare("auto") == .orderedSame
+            ? nil
+            : Locale.Language(identifier: source)
         let targetLanguage = Locale.Language(identifier: target)
         let translated = try MainActor.assumeIsolated {
             try TranslationRunner().run(input: input, source: sourceLanguage, target: targetLanguage)
